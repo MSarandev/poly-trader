@@ -102,3 +102,6 @@ Issues and pull requests are welcome. Run `pytest` before opening a PR. See
 ## License
 
 MIT (see `LICENSE`). Use it freely.
+
+## Backstory
+If you're interested in why this thing came into life, read up on the full story here: https://www.sudorambles.com/polymarket-trading-bot-post-mortem/?swcfpc=1
