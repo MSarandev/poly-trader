@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "polytrader"
+version = "0.1.0"
+description = "Standalone async client for Polymarket connectivity: market data, order placement, balance, treasury, and health via a Node CLOB bridge."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "polytrader" }]
+keywords = ["polymarket", "clob", "trading", "prediction-markets"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+]
+
+# Core dependency only. web3/eth-account are NOT required for the core client —
+# withdraw signing happens in the Node bridge, and the optional Python [withdraw]
+# extra is lazy-imported so `import polytrader` works without it.
+dependencies = [
+    "httpx>=0.24",
+]
+
+[project.optional-dependencies]
+# Optional: only needed if you build tooling that inspects/signs on-chain in
+# Python. The bridge already performs the actual USDC transfer; these are for
+# advanced/optional local verification and are lazy-imported.
+withdraw = [
+    "web3>=6.0",
+    "eth-account>=0.9",
+]
+# HTTP/2 keep-alive for the shared client (optional; falls back to HTTP/1.1).
+http2 = [
+    "h2>=4.0",
+]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[project.urls]
+Homepage = "https://github.com/example/polytrader"
+
+[tool.hatch.build.targets.wheel]
+packages = ["polytrader"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

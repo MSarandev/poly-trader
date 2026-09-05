@@ -1,0 +1,25 @@
+# Secrets / local config — only *.example templates may be committed.
+.env
+.env.local
+.env.*.local
+
+# Bridge-derived CLOB API creds (runtime-populated; NEVER commit).
+bridge/creds/*
+!bridge/creds/.gitkeep
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/

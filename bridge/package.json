@@ -1,0 +1,16 @@
+{
+  "name": "polytrader-clob-bridge",
+  "version": "0.1.0",
+  "description": "Node sidecar wrapping @polymarket/clob-client-v2 (POLY_1271 auth) for the polytrader Python package.",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs",
+    "check": "node --check index.mjs"
+  },
+  "dependencies": {
+    "@polymarket/clob-client-v2": "^1.0.6",
+    "express": "^4.21.0",
+    "viem": "^2.21.0"
+  }
+}
