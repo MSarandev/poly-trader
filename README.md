@@ -1,7 +1,7 @@
 # polytrader
 
 [![CI](https://github.com/MSarandev/poly-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/MSarandev/poly-trader/actions/workflows/ci.yml)
-![coverage](./coverage.svg)
+[![coverage](https://raw.githubusercontent.com/MSarandev/poly-trader/master/coverage.svg)](https://github.com/MSarandev/poly-trader/actions/workflows/ci.yml)
 
 Async Python client for Polymarket: market data, orders, balance, treasury, and
 health. All CLOB auth and order signing happen in a small Node bridge (Polymarket
