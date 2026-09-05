@@ -93,3 +93,12 @@ pytest -m "not integration"   # unit only
 ```
 Unit tests mock the bridge (offline). Integration tests run against a real
 loopback HTTP server.
+
+## Contributing
+
+Issues and pull requests are welcome. Run `pytest` before opening a PR. See
+`AGENTS.md` and `CLAUDE.md` for usage and conventions.
+
+## License
+
+MIT (see `LICENSE`). Use it freely.
