@@ -1,9 +1,7 @@
 """Pooled httpx client factory + bounded retry helper.
 
-One shared ``httpx.AsyncClient`` per :class:`PolyTrader` gives connection
-keep-alive so the hot order/book paths reuse a warm TLS connection instead of
-handshaking on every call. Retries are bounded and apply only to transient
-failures (transport errors and 5xx) — never to 4xx venue rejections.
+One shared client per PolyTrader keeps connections warm. Retries cover only
+transient failures (transport errors, 5xx/429), never 4xx venue rejections.
 """
 from __future__ import annotations
 
@@ -19,12 +17,9 @@ T = TypeVar("T")
 
 
 def make_http_client(*, timeout: float = 10.0) -> httpx.AsyncClient:
-    """Create the single shared async HTTP client for all outbound calls.
+    """The single shared async HTTP client for all outbound calls.
 
-    HTTP/2 (when the optional ``h2`` package is present) adds multiplexing for
-    repeated same-host calls, negotiated via ALPN with transparent HTTP/1.1
-    fallback. If ``h2`` is missing we degrade to HTTP/1.1 keep-alive rather than
-    failing to boot.
+    Uses HTTP/2 when the optional ``h2`` package is present, else HTTP/1.1.
     """
     common = dict(
         headers={"user-agent": "polytrader/0.1"},
@@ -45,8 +40,8 @@ def make_http_client(*, timeout: float = 10.0) -> httpx.AsyncClient:
 
 
 def _is_retryable_status(status: int) -> bool:
-    # Retry transient server-side failures + rate limiting. 4xx (except 429) are
-    # deterministic venue/validation rejections — retrying just wastes time.
+    # Retry server-side failures + rate limiting; 4xx (except 429) are
+    # deterministic rejections.
     return status >= 500 or status == 429
 
 
@@ -60,13 +55,9 @@ async def request_with_retry(
 ) -> httpx.Response:
     """Invoke ``send`` with bounded exponential backoff on transient failures.
 
-    ``send`` must issue exactly one request and return the ``httpx.Response``.
-    Retries on transport errors and (when ``retry_on_status``) 5xx/429 responses.
-    Returns the final response (which the caller inspects for 4xx). Raises the
-    last transport error only when the retry budget is exhausted.
-
-    ``max_retries`` is the number of *retries* after the first attempt, so total
-    attempts = ``max_retries + 1``.
+    ``send`` must issue exactly one request. Retries on transport errors and
+    (when ``retry_on_status``) 5xx/429; raises the last transport error only
+    when the budget is exhausted. Total attempts = ``max_retries + 1``.
     """
     attempts = max(0, max_retries) + 1
     last_exc: Optional[Exception] = None

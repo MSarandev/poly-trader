@@ -1,12 +1,8 @@
 """Low-level async HTTP client for the Node CLOB bridge sidecar.
 
-The bridge owns ``@polymarket/clob-client-v2`` + the ERC-1271 / POLY_1271 auth
-path required for deposit-wallet API keys (which no Python SDK can construct), so
-it is the only path to real orders. This client stays SDK-free: it POSTs plain
-strings ("BUY"/"SELL", "FAK"/"FOK"/"GTC"/"GTD") and returns structured results.
-
-Never raises on a venue rejection. Transport/5xx get bounded retries via
-:func:`polytrader._http.request_with_retry`.
+The bridge owns clob-client-v2 + the POLY_1271 auth no Python SDK can build, so
+it is the only path to real orders. SDK-free: POSTs plain strings, returns
+structured results. Never raises on a venue rejection.
 """
 from __future__ import annotations
 
@@ -35,9 +31,9 @@ class BridgeOrderResult:
 
 
 class BridgeClient:
-    """Thin async HTTP client for the bridge. Owns no pool by default — pass a
-    shared ``httpx.AsyncClient`` so one keep-alive pool serves the whole app.
-    If none is given, one is created and owned by this instance.
+    """Thin async HTTP client for the bridge. Pass a shared ``httpx.AsyncClient``
+    so one keep-alive pool serves the whole app; else one is created and owned
+    here.
     """
 
     def __init__(
@@ -87,11 +83,9 @@ class BridgeClient:
         return resp.json()
 
     async def balance(self) -> dict:
-        """Raw ``GET /balance`` payload. Raises on transport/HTTP error.
-
-        Returns the dict ``{balance_raw, balance_usd, allowances}``. The
-        null-``balance_usd`` guard lives in the higher-level
-        ``PolyTrader.verify_balance``; this stays raw so both callers share it.
+        """Raw ``GET /balance`` (``{balance_raw, balance_usd, allowances}``).
+        Raises on transport/HTTP error; the null-``balance_usd`` guard lives in
+        ``PolyTrader.verify_balance`` so this stays raw for both callers.
         """
         resp = await request_with_retry(
             lambda: self._client.get(f"{self.base_url}/balance", timeout=self.timeout),
@@ -103,14 +97,11 @@ class BridgeClient:
         return resp.json()
 
     async def balance_usd(self) -> Optional[Decimal]:
-        """Deposit wallet's collateral balance as a Decimal, or None on any
-        error / non-finite payload.
+        """Collateral balance as a Decimal, or None on any error/non-finite.
 
-        Guards the ``balance_usd: null`` case: the bridge computes
-        ``Number(ba.balance) / 1e6``; a bad SDK field yields NaN which serialises
-        to JSON ``null``. ``Decimal("nan")`` is not caught by ``except
-        ValueError`` (it's an ``ArithmeticError``), so we catch that too and
-        non-finite values explicitly.
+        Guards ``balance_usd: null`` (bridge NaN serialises to JSON null).
+        ``Decimal("nan")`` raises ``ArithmeticError``, not ``ValueError``, so
+        catch both and reject non-finite explicitly.
         """
         try:
             data = await self.balance()
@@ -127,16 +118,12 @@ class BridgeClient:
     # --- orders -------------------------------------------------------------
 
     async def _post_order(self, path: str, body: dict, coi: Optional[str]) -> BridgeOrderResult:
-        """Shared POST helper for order-like endpoints. Returns a structured
-        result on any 4xx/5xx (no raise).
+        """Shared POST helper for order-like endpoints. Structured result on any
+        4xx/5xx (no raise).
 
-        IMPORTANT — order placement is NEVER auto-retried. The bridge/CLOB does
-        not dedup on ``client_order_id``, so retrying after a lost response
-        (e.g. a ReadTimeout where the order was actually accepted) would place a
-        SECOND fill and double real exposure. A single attempt is made; on a
-        transport failure or 5xx the caller gets a structured error and must
-        reconcile (re-check balance/positions) before any manual resubmit. Only
-        idempotent reads (balance/book/health) use the retry path."""
+        Order placement is NEVER auto-retried: the bridge/CLOB doesn't dedup on
+        ``client_order_id``, so a retry after a lost-but-accepted response would
+        double-fill. Single attempt; the caller reconciles before any resubmit."""
         t0 = time.monotonic()
         try:
             resp = await request_with_retry(
@@ -181,9 +168,9 @@ class BridgeClient:
         order_type: str,       # "FOK" | "FAK"
         tick_size: str = "0.01",
     ) -> BridgeOrderResult:
-        """Market order — Polymarket handles the share count. For BUY,
-        ``amount_usd`` is the USDC to spend; whatever shares fill at the resting
-        asks. Avoids the ">2dp maker" validation that hits limit orders."""
+        """Market order; Polymarket handles the share count. BUY spends
+        ``amount_usd`` USDC. Avoids the ">2dp maker" validation that hits limit
+        orders."""
         body = {
             "client_order_id": client_order_id,
             "token_id": token_id,

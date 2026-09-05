@@ -1,12 +1,10 @@
 """The high-level ``PolyTrader`` API.
 
-One pooled ``httpx.AsyncClient`` serves market data (Gamma + CLOB) and the Node
-bridge (orders, balance, health, withdraw). All I/O is async; use
-``async with PolyTrader(...) as pt:`` or call ``await pt.close()`` explicitly.
+One pooled client serves market data (Gamma + CLOB) and the Node bridge. All
+I/O is async: use ``async with PolyTrader(...) as pt`` or ``await pt.close()``.
 
-Design contract: never raises on a venue rejection — order and treasury calls
-return structured ``ok`` / ``error_msg`` results. Only bad arguments
-(ValidationError) or unrecoverable config (ConfigError) raise.
+Contract: never raises on a venue rejection (structured ``ok`` / ``error_msg``);
+only bad arguments (ValidationError) or bad config (ConfigError) raise.
 """
 from __future__ import annotations
 
@@ -95,9 +93,8 @@ class PolyTrader:
     async def verify_conn_health(self) -> HealthStatus:
         """Probe the bridge (``/healthz``) and CLOB reachability (``/balance``).
 
-        Never raises — returns ``ok=False`` with a ``detail`` string on failure.
-        ``clob_ok`` reflects whether the bridge could reach the CLOB (a live
-        balance read exercises the authed CLOB path end-to-end).
+        Never raises. ``clob_ok`` reflects whether the bridge reached the CLOB
+        (a live balance read exercises the authed path end-to-end).
         """
         t0 = time.monotonic()
         bridge_ok = False
@@ -112,7 +109,7 @@ class PolyTrader:
                 ok=False, bridge_ok=False, clob_ok=False,
                 latency_ms=latency, detail=f"bridge unreachable: {exc}",
             )
-        # Bridge is up — now check it can actually reach the CLOB.
+        # Bridge is up; now check it can reach the CLOB.
         try:
             bal = await self._bridge.balance_usd()
             clob_ok = bal is not None
@@ -132,8 +129,8 @@ class PolyTrader:
     async def verify_balance(self) -> Balance:
         """Collateral (USDC) balance of the trading wallet.
 
-        Returns ``Balance(ok=False, usd=None, ...)`` on failure — never crashes
-        on a null/non-finite payload.
+        Returns ``Balance(ok=False, ...)`` on failure; never crashes on a
+        null/non-finite payload.
         """
         try:
             data = await self._bridge.balance()
@@ -169,19 +166,15 @@ class PolyTrader:
         *,
         order_type: Optional[str] = None,
     ) -> OrderResult:
-        """Primary entry point: resolve ``outcome`` to a token id against
-        ``market``, then place a MARKET BUY spending ``amount_usd`` USDC.
+        """Resolve ``outcome`` to a token id against ``market``, then place a
+        MARKET BUY spending ``amount_usd`` USDC.
 
-        ``market``: a :class:`Market`, or a slug / condition-id string (looked up).
-        ``outcome``: "UP"/"DOWN"/"YES"/"NO", the outcome label, an integer index,
-        or an explicit token id string.
+        ``market``: a :class:`Market`, or a slug / condition-id string.
+        ``outcome``: "UP"/"DOWN"/"YES"/"NO", a label, an int index, or a token id.
         ``amount_usd``: USDC to spend (>= $1 marketable-BUY minimum).
 
-        NOTE (slippage): market BUYs take whatever's at the top of book — there
-        is no max-price parameter. At small sizes (<~$50) this eats only the
-        inside asks and is fine; above ~$50 a single market BUY can bite into
-        deeper, worse levels. For large sizes prefer a limit FAK via
-        :meth:`place_limit_order` at the inside ask. See README.
+        Slippage: market BUYs have no max-price and eat deeper levels above
+        ~$50. For large sizes prefer a limit FAK via :meth:`place_limit_order`.
         """
         amt = self._coerce_amount(amount_usd)
         resolved = market if isinstance(market, Market) else await self.get_market(market)
@@ -251,10 +244,9 @@ class PolyTrader:
     ) -> OrderResult:
         """Low-level limit order.
 
-        For a marketable BUY, ``size`` is snapped so ``price × size`` lands on a
-        clean 2-dp maker (``shares_for_clean_maker``) — otherwise the CLOB rejects
-        it once the SDK ``roundDown``s the size to 2 dp. SELL/GTC resting orders
-        pass the requested size through unchanged.
+        For a marketable BUY, ``size`` is snapped so ``price * size`` lands on a
+        clean 2-dp maker (see ``shares_for_clean_maker``). SELL/GTC resting
+        orders pass ``size`` through unchanged.
         """
         side = self._validate_side(side)
         price_d = self._coerce_decimal(price, "price")
@@ -267,9 +259,8 @@ class PolyTrader:
 
         if side == "BUY":
             # Snap to a clean maker so a marketable BUY isn't rejected for >2dp.
-            # shares_for_clean_maker returns None when the budget is too small to
-            # buy even one clean-maker increment — treat that as "no fit" rather
-            # than silently submitting the un-snapped (>2dp maker) size.
+            # None means the budget can't buy even one clean increment: treat as
+            # "no fit" rather than submit an un-snapped (>2dp) size.
             budget = price_d * size_d
             snapped = markets.shares_for_clean_maker(budget, price_d)
             if snapped is None or snapped[0] <= 0:
@@ -348,10 +339,9 @@ class PolyTrader:
     async def deposit(
         self, amount_usd: Optional[Union[Decimal, float, int, str]] = None
     ) -> DepositInfo:
-        """Deposits are EXTERNAL — funds cannot be pulled programmatically.
-        Returns the address to send USDC to plus instructions; poll
-        :meth:`verify_balance` afterwards to confirm arrival. ``amount_usd`` is
-        informational only."""
+        """Deposits are EXTERNAL: funds cannot be pulled programmatically.
+        Returns the address to send USDC to; poll :meth:`verify_balance`
+        afterwards. ``amount_usd`` is informational only."""
         amt = self._coerce_amount(amount_usd) if amount_usd is not None else None
         chain = f"Polygon (chain_id={self.config.chain_id})"
         addr = self.config.deposit_address
@@ -382,12 +372,11 @@ class PolyTrader:
         to_address: str,
     ) -> WithdrawResult:
         """On-chain USDC transfer from the trading wallet to ``to_address`` via
-        the bridge's ``/withdraw`` endpoint.
+        the bridge's ``/withdraw``.
 
-        Hard-guarded: disabled unless ``config.allow_withdraw`` is True; validates
-        the destination address and that ``0 < amount <= balance`` before calling
-        the bridge. Returns a structured result — never raises on a chain/venue
-        error. Verify on testnet before production use.
+        Hard-guarded: disabled unless ``config.allow_withdraw``; validates the
+        address and ``0 < amount <= balance`` first. Structured result, never
+        raises. Verify on testnet before production use.
         """
         if not self.config.allow_withdraw:
             return WithdrawResult(
@@ -405,8 +394,8 @@ class PolyTrader:
         if amt <= 0:
             return WithdrawResult(ok=False, error_msg="amount_usd must be > 0")
 
-        # Balance check — refuse to over-withdraw. A failed balance read blocks
-        # the withdrawal (fail closed on a treasury op).
+        # Refuse to over-withdraw; a failed balance read blocks the withdrawal
+        # (fail closed on a treasury op).
         bal = await self.verify_balance()
         if not bal.ok or bal.usd is None:
             return WithdrawResult(

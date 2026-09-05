@@ -1,5 +1,5 @@
-"""withdraw (guarded) and deposit — all mocked at the bridge-HTTP boundary so no
-eth libraries are imported."""
+"""withdraw (guarded) and deposit; mocked at the bridge-HTTP boundary so no eth
+libraries are imported."""
 from __future__ import annotations
 
 import json

@@ -1,10 +1,7 @@
 """Shared pytest fixtures for the polytrader suite.
 
-Everything runs OFFLINE: outbound HTTP is served by an ``httpx.MockTransport``
-that emulates the Node bridge, the Gamma API, and the CLOB book endpoint. No
-network, no real bridge, no creds. The actual test cases are written by a
-separate agent — this file just gives them a batteries-included fake venue to
-build on.
+Everything runs OFFLINE: an ``httpx.MockTransport`` emulates the bridge, Gamma,
+and CLOB. No network, no real bridge, no creds.
 
 Typical use::
 

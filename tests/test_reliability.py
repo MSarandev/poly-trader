@@ -35,9 +35,8 @@ async def test_balance_gives_up_after_budget_exhausted(polytrader, fake_venue):
 
 
 async def test_order_5xx_is_not_retried_no_double_submit(polytrader, fake_venue):
-    # Orders are non-idempotent (the bridge doesn't dedup on client_order_id),
-    # so a transient 5xx must NOT be auto-retried — retrying after a possibly-
-    # accepted order would double-fill. Exactly one attempt, structured error.
+    # Orders are non-idempotent (no dedup on client_order_id), so a transient
+    # 5xx must NOT be auto-retried: a retry could double-fill. One attempt.
     fake_venue.transient_failures = 2  # would-be-transient, but orders don't retry
     res = await polytrader.place_market_order(token_id=UP_TOKEN, side="BUY", amount_usd=5)
     assert res.ok is False

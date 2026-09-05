@@ -40,7 +40,7 @@ async def test_place_market_order_sell_parses_without_crash(polytrader):
         token_id=UP_TOKEN, side="SELL", amount_usd=10
     )
     assert res.ok is True
-    # SELL parsing path: making=shares, taking=usd — just assert no crash + ok.
+    # SELL parsing path: making=shares, taking=usd; assert no crash + ok.
     assert res.status == "matched"
 
 
@@ -95,10 +95,9 @@ async def test_place_limit_buy_snaps_to_clean_2dp_maker(polytrader, fake_venue):
 
 
 async def test_place_limit_buy_tiny_budget_rejected_not_submitted(polytrader, fake_venue):
-    # price 0.99 x size 0.001 = budget 0.00099 — too small to buy even one
-    # clean-maker increment, so shares_for_clean_maker returns None. The order
-    # must be rejected with a structured error, NOT silently submitted with the
-    # un-snapped (>2dp maker) size (regression for the clean-maker None bug).
+    # budget 0.00099 is too small to buy one clean-maker increment, so
+    # shares_for_clean_maker returns None. Must be rejected, not silently
+    # submitted with an un-snapped (>2dp) size (clean-maker None regression).
     res = await polytrader.place_limit_order(
         token_id=UP_TOKEN, side="BUY", price="0.99", size="0.001", order_type="FAK"
     )

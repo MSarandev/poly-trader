@@ -1,4 +1,4 @@
-# Secrets / local config — only *.example templates may be committed.
+# Secrets / local config: only *.example templates may be committed.
 .env
 .env.local
 .env.*.local
@@ -23,3 +23,8 @@ env/
 *.egg-info/
 build/
 dist/
+
+# Coverage artifacts (coverage.svg badge IS committed)
+coverage.xml
+.coverage
+htmlcov/

@@ -17,32 +17,33 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 
-# Core dependency only. web3/eth-account are NOT required for the core client —
-# withdraw signing happens in the Node bridge, and the optional Python [withdraw]
-# extra is lazy-imported so `import polytrader` works without it.
+# Core only. web3/eth-account are NOT needed here (withdraw signing lives in the
+# Node bridge; the [withdraw] extra is lazy-imported).
 dependencies = [
     "httpx>=0.24",
 ]
 
 [project.optional-dependencies]
-# Optional: only needed if you build tooling that inspects/signs on-chain in
-# Python. The bridge already performs the actual USDC transfer; these are for
-# advanced/optional local verification and are lazy-imported.
+# Optional local on-chain tooling (lazy-imported). The bridge does the real
+# USDC transfer; these are for advanced local verification.
 withdraw = [
     "web3>=6.0",
     "eth-account>=0.9",
 ]
-# HTTP/2 keep-alive for the shared client (optional; falls back to HTTP/1.1).
+# HTTP/2 keep-alive (optional; falls back to HTTP/1.1).
 http2 = [
     "h2>=4.0",
 ]
 test = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "pytest-httpserver>=1.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/example/polytrader"
+Homepage = "https://github.com/MSarandev/poly-trader"
+Repository = "https://github.com/MSarandev/poly-trader"
 
 [tool.hatch.build.targets.wheel]
 packages = ["polytrader"]
@@ -50,3 +51,13 @@ packages = ["polytrader"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: exercises the client over a real loopback HTTP server",
+]
+
+[tool.coverage.run]
+source = ["polytrader"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true

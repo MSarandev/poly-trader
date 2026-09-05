@@ -1,8 +1,7 @@
 """Public data types returned by :class:`polytrader.client.PolyTrader`.
 
-All results are plain frozen dataclasses (no pydantic dependency). Order and
-treasury results carry ``ok`` / ``error_msg`` instead of raising on a venue
-rejection.
+Frozen dataclasses (no pydantic). Order/treasury results carry ``ok`` /
+``error_msg`` instead of raising on a venue rejection.
 """
 from __future__ import annotations
 
@@ -122,8 +121,8 @@ class HealthStatus:
 class DepositInfo:
     """Instructions for funding the trading wallet.
 
-    Deposits cannot be pulled programmatically — this is the address to send
-    USDC to, plus guidance to poll ``verify_balance()`` afterwards.
+    Deposits cannot be pulled programmatically: this is the address to send USDC
+    to. Poll ``verify_balance()`` afterwards.
     """
 
     deposit_address: Optional[str]

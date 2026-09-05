@@ -1,7 +1,7 @@
-"""polytrader — a standalone client for Polymarket connectivity.
+"""polytrader: a standalone client for Polymarket connectivity.
 
-Market data + order placement + balance + treasury + health, wrapping the Node
-CLOB bridge. No model, DB, gates, or strategy — just the venue plumbing.
+Market data, orders, balance, treasury, and health, wrapping the Node CLOB
+bridge. No model, DB, gates, or strategy: just the venue plumbing.
 
 Quickstart::
 

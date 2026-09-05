@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[test,http2]"
+
+      - name: Test + coverage
+        run: pytest --cov=polytrader --cov-report=term-missing --cov-report=xml
+
+      - name: Generate coverage badge
+        run: |
+          pip install "genbadge[coverage]"
+          genbadge coverage -i coverage.xml -o coverage.svg
+
+      - name: Commit coverage badge
+        if: github.ref == 'refs/heads/master'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update coverage badge [skip ci]"
+          file_pattern: coverage.svg

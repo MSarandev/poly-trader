@@ -1,10 +1,8 @@
 """Exception hierarchy for polytrader.
 
-Golden rule: venue rejections are NOT exceptions — order and treasury calls
-return structured results (`ok` / `error_msg`). Exceptions are
-reserved for programmer error (bad arguments) and unrecoverable configuration.
-Transport failures are retried internally and, if they still fail, surface as a
-structured result too (they do not raise past the client boundary).
+Golden rule: venue rejections are NOT exceptions; order/treasury calls return
+structured results (``ok`` / ``error_msg``). Exceptions are reserved for
+programmer error and unrecoverable config.
 """
 from __future__ import annotations
 

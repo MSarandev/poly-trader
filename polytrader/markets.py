@@ -1,9 +1,8 @@
-"""Polymarket market-data access: active market lookup, order book, prices,
-and the tick/rounding helper.
+"""Polymarket market-data access: market lookup, order book, prices, and the
+tick/rounding helper.
 
-This module is intentionally market-data only — no prediction, model, or
-strategy logic lives here. Everything is stateless and takes an injected
-``httpx.AsyncClient`` + base URLs so nothing is hardcoded.
+Market-data only: no strategy logic. Stateless; takes an injected client and
+base URLs.
 """
 from __future__ import annotations
 
@@ -21,8 +20,7 @@ from .models import BookLevel, Market, OrderBook, Outcome
 
 logger = logging.getLogger(__name__)
 
-# 15-minute "BTC up/down" market cadence, used by the slug/slot helpers. These
-# are Polymarket conventions, not strategy.
+# 15-minute BTC up/down market cadence (Polymarket convention, not strategy).
 SLOT_SECONDS = 15 * 60
 SLOT_MS = SLOT_SECONDS * 1000
 SLUG_PREFIX = "btc-updown-15m-"
@@ -194,9 +192,8 @@ def market_outcome_price(market: Market, outcome_label: str) -> Optional[float]:
 def parse_order_book(token_id: str, raw: dict) -> OrderBook:
     """Parse a CLOB ``GET /book`` payload into a sorted :class:`OrderBook`.
 
-    Pure — does no I/O. Drops malformed or non-positive levels rather than
-    raising. Asks are sorted cheapest-first, bids highest-first (Polymarket
-    returns each side worst-price-first).
+    Pure. Drops malformed/non-positive levels rather than raising. Asks sorted
+    cheapest-first, bids highest-first.
     """
 
     def _levels(items) -> list[BookLevel]:
@@ -232,9 +229,8 @@ async def fetch_order_book(
     max_retries: int = 2,
     backoff_s: float = 0.25,
 ) -> Optional[OrderBook]:
-    """Fetch and parse the live CLOB order book for ``token_id``. Returns None on
-    any transport/JSON error so callers can skip rather than trade on a stale or
-    missing quote."""
+    """Fetch and parse the live CLOB book for ``token_id``. None on any
+    transport/JSON error so callers skip rather than trade on a missing quote."""
     try:
         resp = await request_with_retry(
             lambda: client.get(
@@ -269,22 +265,15 @@ def shares_for_clean_maker(
     taker_dp: int = 2,
     maker_dp: int = 2,
 ) -> Optional[tuple[Decimal, Decimal]]:
-    """Largest share ``size`` buyable for up to ``amount_usd`` at limit ``price``
-    such that the maker USDC amount (``price × size``) lands on a clean
-    ``maker_dp``-decimal value and ``size`` has at most ``taker_dp`` decimals.
+    """Largest share ``size`` buyable for up to ``amount_usd`` at ``price`` such
+    that the maker USDC (``price * size``) is clean to ``maker_dp`` and ``size``
+    to ``taker_dp`` decimals. Returns ``(size, maker_usd)``, or None when no
+    positive clean size fits the budget.
 
-    ``taker_dp`` MUST match what ``@polymarket/clob-client-v2`` rounds ``size`` to
-    before it recomputes ``maker = size × price``. Its ``ROUNDING_CONFIG`` uses
-    ``size: 2`` for *every* tick size, i.e. it ``roundDown``s our size to 2 dp. If
-    we hand it a finer size (e.g. 13.875 at price 0.72) it truncates to 13.87 and
-    the recomputed maker (9.9864) is no longer 2 dp — which the CLOB rejects on a
-    *marketable* BUY with ``400 invalid amounts, max 2 decimals for maker``.
-    Rounding ``size`` to 2 dp here keeps ``maker = price × size`` on the cent grid
-    through the SDK. Returns ``(size, maker_usd)``, or None when no positive clean
-    size fits the budget (caller should skip / fall back).
-
-    Exact — uses ``Fraction``, no float error. ``size × price == maker_usd`` holds
-    to the returned precision by construction.
+    ``taker_dp`` MUST match the SDK's size rounding: clob-client-v2 ``roundDown``s
+    size to 2 dp before recomputing ``maker = size * price``, so a finer size
+    yields a >2dp maker the CLOB rejects on a marketable BUY. Exact (Fraction),
+    no float error.
     """
     P = Fraction(str(price))
     A = Fraction(str(amount_usd))

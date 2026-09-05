@@ -1,26 +1,13 @@
 /**
- * polytrader CLOB bridge — Node.js sidecar that wraps
- * @polymarket/clob-client-v2 with POLY_1271 (deposit-wallet) signing.
+ * polytrader CLOB bridge: Node sidecar wrapping @polymarket/clob-client-v2 with
+ * POLY_1271 (deposit-wallet) signing. Only Python can't build the ERC-1271 L1
+ * auth Polymarket needs, so order placement + treasury run here.
  *
- * Python (and every Python CLOB SDK) can't construct ERC-1271-style L1 auth
- * signatures, which Polymarket requires for any API key bound to a deposit
- * wallet. The TS SDK does this correctly, so we run the order-placement +
- * treasury leg here and keep everything else in the Python `polytrader`
- * package.
+ * Endpoints: GET /healthz, /balance, /recent-events; POST /place-market-order,
+ * /place-order, /cancel, /withdraw (guarded).
  *
- * Endpoints:
- *   GET  /healthz            liveness check
- *   GET  /balance            trading wallet's collateral balance (USDC, 6 dp)
- *   GET  /recent-events      ring buffer of recent bridge activity
- *   POST /place-market-order market order (BUY spends USDC amount)
- *   POST /place-order        limit order
- *   POST /cancel             cancel a resting order  (NEW)
- *   POST /withdraw           on-chain USDC transfer   (NEW, guarded)
- *
- * Config is env-only; NO secrets are committed. See .env.example.
- * Creds storage: api-creds.json under /app/creds (volume-mounted, gitignored).
- * First boot: createOrDeriveApiKey, persist. Subsequent boots: load from disk.
- * If saved creds 401, re-derive.
+ * Config is env-only; NO secrets committed (see .env.example). Creds persist to
+ * /app/creds (gitignored); derived on first boot, re-derived on a 401.
  */
 
 import { createWalletClient, http, createPublicClient, encodeFunctionData,
@@ -50,7 +37,7 @@ const RECENT_EVENTS_MAX = 50;
 // Withdrawals move real funds; keep them off by default.
 const ALLOW_WITHDRAW = /^(1|true|yes|on)$/i.test(process.env.BRIDGE_ALLOW_WITHDRAW || "");
 const RPC_URL = process.env.POLYGON_RPC_URL || "https://polygon-bor-rpc.publicnode.com";
-// USDC (PoS) on Polygon mainnet — public contract address.
+// USDC (PoS) on Polygon mainnet; public contract address.
 const USDC_ADDRESS = process.env.USDC_ADDRESS || "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 const USDC_DECIMALS = parseInt(process.env.USDC_DECIMALS || "6", 10);
 const ERC20_TRANSFER_ABI = [{
@@ -145,9 +132,8 @@ let client = new ClobClient({
 });
 
 // Re-derive the API key and rebuild the authed client. createOrDeriveApiKey
-// returns the *existing* registered key when there is one, so this is safe to
-// call on a 401 — it recovers a rotated/invalidated key without minting a
-// colliding nonce-0 key.
+// returns the existing registered key if there is one, so it's safe on a 401:
+// recovers a rotated key without minting a colliding nonce-0 key.
 async function refreshCreds() {
   const l1Client = new ClobClient({
     host: HOST,
@@ -209,7 +195,7 @@ async function submitWithAuthRetry(submitFn, coi) {
   return lastResp; // still 401 after refresh + retry
 }
 
-// Quick smoke check — fail loudly if auth is broken so "starting"→"healthy"
+// Quick smoke check: fail loudly if auth is broken so "starting"→"healthy"
 // reflects real state.
 try {
   const ba = await client.getBalanceAllowance({ asset_type: "COLLATERAL" });
@@ -227,8 +213,8 @@ try {
     level: "error",
     message: `startup balance check failed: ${e?.message || e}`,
   });
-  // Don't exit — the order endpoint returns the error to the caller, and
-  // /healthz stays up so ops can read the logs.
+  // Don't exit: order endpoints return the error to the caller, and /healthz
+  // stays up so ops can read the logs.
 }
 
 // ---------------------------------------------------------------------------
@@ -251,8 +237,8 @@ app.get("/balance", async (_, res) => {
     const ba = await client.getBalanceAllowance({ asset_type: "COLLATERAL" });
     const balanceUsd = Number(ba.balance) / 1e6;
     if (!Number.isFinite(balanceUsd)) {
-      // SDK returned an object without a usable `balance` — surface as an error
-      // (not a null balance_usd, which the Python side can't parse).
+      // No usable `balance`: surface as an error, not a null balance_usd the
+      // Python side can't parse.
       res.status(502).json({ error: `bad balance payload: ${JSON.stringify(ba?.balance)}` });
       return;
     }
@@ -286,10 +272,9 @@ function parseOrderType(t) {
   return ot;
 }
 
-// Market BUY — pass amount in USDC (2-decimal precision native), let Polymarket
-// figure out shares. Limit orders for marketable buys hit "invalid amounts"
-// errors at non-trivial sizes because makerAmount = price × shares can exceed
-// 2-dp precision; market orders avoid that.
+// Market BUY: pass amount in USDC and let Polymarket figure out shares. Limit
+// marketable buys hit "invalid amounts" because makerAmount = price * shares
+// can exceed 2-dp precision; market orders avoid that.
 app.post("/place-market-order", async (req, res) => {
   const { token_id, side, amount_usd, order_type, tick_size, client_order_id } =
     req.body || {};
@@ -364,7 +349,7 @@ app.post("/place-market-order", async (req, res) => {
       level: errorMsg || status === "rejected" ? "warn" : "info",
       status,
       order_id: orderId ? `${orderId.slice(0, 12)}…` : null,
-      // makingAmount / takingAmount come back as decimal strings — do not /1e6.
+      // makingAmount / takingAmount are decimal strings; do not /1e6.
       filled_usd: makingAmount ? Number(makingAmount) : null,
       latency_ms: t1 - t0,
       error: errorMsg || null,
@@ -557,7 +542,7 @@ app.post("/cancel", async (req, res) => {
 });
 
 // On-chain USDC transfer from the trading wallet (EOA) to `to`. Guarded by
-// BRIDGE_ALLOW_WITHDRAW. Moves REAL funds — verify on testnet before production.
+// BRIDGE_ALLOW_WITHDRAW. Moves REAL funds; verify on testnet first.
 // Body: { to, amount_usd }.
 const publicClient = createPublicClient({ chain: polygon, transport: http(RPC_URL) });
 
